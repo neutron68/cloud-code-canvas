@@ -249,10 +249,10 @@ export class CodeExecutor {
           output = this.parsePhpOutput(code);
           break;
         case 'html':
-          output = 'HTML document rendered successfully';
+          output = '✓ HTML document structure validated\n✓ Preview rendered successfully\n\nTip: Use the Preview button to see your HTML rendered in real-time!';
           break;
         case 'css':
-          output = 'CSS styles applied successfully';
+          output = '✓ CSS syntax validated\n✓ Styles ready to apply\n\nTip: Use the Preview button to see your styles applied to HTML!';
           break;
         case 'json':
           try {

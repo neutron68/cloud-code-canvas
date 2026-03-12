@@ -1,8 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import { Play, Code2, Save, Settings, PanelLeftClose, PanelLeft, X } from "lucide-react";
+import { Play, Code2, Save, Settings, PanelLeftClose, PanelLeft, X, Eye, EyeOff } from "lucide-react";
 import FileSidebar from "@/components/workspace/FileSidebar";
 import EnhancedTerminal from "@/components/workspace/EnhancedTerminal";
+import HTMLPreview from "@/components/workspace/HTMLPreview";
+import ErrorPanel from "@/components/workspace/ErrorPanel";
 import LanguageSelector from "@/components/workspace/LanguageSelector";
 import { languages, Language } from "@/data/languages";
 import { judge0LanguageMap } from "@/data/judge0Languages";
@@ -12,6 +14,8 @@ import { useFolderBrowser } from "@/hooks/useFolderBrowser";
 import { FileNode } from "@/lib/folderBrowser";
 import { useToast } from "@/hooks/use-toast";
 import { executeCode, stopExecution, isCodeRunning, DebugInfo } from "@/lib/codeExecution";
+import { analyzeCode, ErrorAnalysis } from "@/lib/errorDetection";
+import type { editor } from 'monaco-editor';
 
 interface OpenTab {
   filename: string;
@@ -30,6 +34,10 @@ const Workspace = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [debugInfo, setDebugInfo] = useState<DebugInfo[]>([]);
   const [isDebugging, setIsDebugging] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [errorAnalysis, setErrorAnalysis] = useState<ErrorAnalysis | null>(null);
+  const [showErrorPanel, setShowErrorPanel] = useState(false);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   // Folder browser hook
   const { 
@@ -67,15 +75,51 @@ const Workspace = () => {
       return updated;
     });
     setOutput("");
+    
+    // Auto-show preview for HTML/CSS
+    if (lang.id === 'html' || lang.id === 'css') {
+      setShowPreview(true);
+    }
   }, [activeTabIndex]);
 
   const handleCodeChange = useCallback((value: string | undefined) => {
     setTabs((prev) => {
       const updated = [...prev];
-      updated[activeTabIndex] = { ...updated[activeTabIndex], code: value || "" };
+      if (updated[activeTabIndex]) {
+        updated[activeTabIndex] = { ...updated[activeTabIndex], code: value || "" };
+      }
       return updated;
     });
-  }, [activeTabIndex]);
+    
+    // Real-time error detection
+    if (value && tabs[activeTabIndex]) {
+      const currentTab = tabs[activeTabIndex];
+      const analysis = analyzeCode(value, currentTab.language.id);
+      setErrorAnalysis(analysis);
+      
+      // Update editor markers
+      if (editorRef.current) {
+        const monaco = (window as any).monaco;
+        if (monaco) {
+          const model = editorRef.current.getModel();
+          if (model) {
+            const markers = [...analysis.errors, ...analysis.warnings].map(err => ({
+              severity: err.severity === 'error' ? monaco.MarkerSeverity.Error : 
+                       err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
+                       monaco.MarkerSeverity.Info,
+              startLineNumber: err.line,
+              startColumn: err.column,
+              endLineNumber: err.line,
+              endColumn: err.column + 10,
+              message: `${err.message}\n\n💡 ${err.suggestion}`,
+              code: err.code,
+            }));
+            monaco.editor.setModelMarkers(model, 'errorDetection', markers);
+          }
+        }
+      }
+    }
+  }, [activeTabIndex, tabs]);
 
   const handleFileSelect = useCallback(async (node: FileNode) => {
     if (node.type !== 'file') return;
@@ -85,6 +129,11 @@ const Workspace = () => {
     
     if (existingIndex >= 0) {
       setActiveTabIndex(existingIndex);
+      const existingTab = tabs[existingIndex];
+      // Auto-show preview for HTML/CSS files
+      if (existingTab.language.id === 'html' || existingTab.language.id === 'css') {
+        setShowPreview(true);
+      }
       return;
     }
 
@@ -115,6 +164,11 @@ const Workspace = () => {
     setTabs((prev) => [...prev, newTab]);
     setActiveTabIndex(tabs.length);
     setLanguage(lang);
+    
+    // Auto-show preview for HTML/CSS files
+    if (lang.id === 'html' || lang.id === 'css') {
+      setShowPreview(true);
+    }
   }, [tabs, readFile]);
 
   const handleCloseTab = useCallback((index: number, e: React.MouseEvent) => {
@@ -154,24 +208,52 @@ const Workspace = () => {
   const handleRun = useCallback(async () => {
     if (isRunning) return;
     
+    if (!tabs[activeTabIndex]) return;
+    
+    const currentTab = tabs[activeTabIndex];
+    
+    // For HTML/CSS, just show the preview
+    if (currentTab.language.id === 'html' || currentTab.language.id === 'css') {
+      setShowPreview(true);
+      toast({
+        title: 'Preview Updated',
+        description: 'HTML preview is now visible',
+      });
+      return;
+    }
+    
+    // Check for errors before running
+    const analysis = analyzeCode(currentTab.code, currentTab.language.id);
+    setErrorAnalysis(analysis);
+    
+    if (!analysis.canRun) {
+      setShowErrorPanel(true);
+      toast({
+        title: 'Cannot Run Code',
+        description: `Found ${analysis.errors.length} error(s). Fix them before running.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setIsRunning(true);
     setOutput("");
     setDebugInfo([]);
     
     try {
       // First try cloud execution if supported
-      const langId = judge0LanguageMap[activeTab.language.id];
+      const langId = judge0LanguageMap[currentTab.language.id];
       let cloudExecutionAttempted = false;
       
       if (langId) {
         cloudExecutionAttempted = true;
         const timestamp = new Date().toLocaleTimeString();
-        setOutput(`[${timestamp}] Submitting to cloud compiler (${activeTab.language.name})...\n`);
+        setOutput(`[${timestamp}] Submitting to cloud compiler (${currentTab.language.name})...\n`);
         
         try {
           const { data, error } = await supabase.functions.invoke("execute-code", {
             body: {
-              source_code: activeTab.code,
+              source_code: currentTab.code,
               language_id: langId,
             },
           });
@@ -204,8 +286,8 @@ const Workspace = () => {
       // Fallback to enhanced local execution
       const result = await executeCode(
         {
-          language: activeTab.language.id,
-          code: activeTab.code,
+          language: currentTab.language.id,
+          code: currentTab.code,
           debug: isDebugging,
           timeout: 30000
         },
@@ -249,7 +331,7 @@ const Workspace = () => {
     } finally {
       setIsRunning(false);
     }
-  }, [activeTab, isDebugging, toast]);
+  }, [tabs, activeTabIndex, isDebugging, toast]);
 
   const handleStop = useCallback(() => {
     stopExecution();
@@ -263,12 +345,75 @@ const Workspace = () => {
   }, [toast]);
 
   const handleDebug = useCallback(() => {
-    setIsDebugging(!isDebugging);
-    toast({
-      title: isDebugging ? 'Debug Disabled' : 'Debug Enabled',
-      description: isDebugging ? 'Debug mode turned off' : 'Debug mode turned on - variables will be tracked',
-    });
-  }, [isDebugging, toast]);
+    if (!tabs[activeTabIndex]) return;
+    
+    const currentTab = tabs[activeTabIndex];
+    // Analyze code for errors
+    const analysis = analyzeCode(currentTab.code, currentTab.language.id);
+    setErrorAnalysis(analysis);
+    setShowErrorPanel(true);
+    
+    if (analysis.hasErrors) {
+      toast({
+        title: 'Errors Detected',
+        description: `Found ${analysis.errors.length} error(s). Check the debug panel for details.`,
+        variant: 'destructive',
+      });
+    } else if (analysis.hasWarnings) {
+      toast({
+        title: 'Warnings Found',
+        description: `Found ${analysis.warnings.length} warning(s). Code can run but may have issues.`,
+      });
+    } else {
+      toast({
+        title: 'No Issues Found',
+        description: 'Your code looks great! Ready to run.',
+      });
+    }
+  }, [tabs, activeTabIndex, toast]);
+
+  const handleJumpToLine = useCallback((line: number) => {
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(line);
+      editorRef.current.setPosition({ lineNumber: line, column: 1 });
+      editorRef.current.focus();
+      setShowErrorPanel(false);
+    }
+  }, []);
+
+  const handleApplyFix = useCallback((line: number, fix: string) => {
+    if (editorRef.current) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        const lineContent = model.getLineContent(line);
+        const range = {
+          startLineNumber: line,
+          startColumn: 1,
+          endLineNumber: line,
+          endColumn: lineContent.length + 1,
+        };
+        editorRef.current.executeEdits('quickfix', [{
+          range,
+          text: fix,
+        }]);
+        toast({
+          title: 'Fix Applied',
+          description: `Line ${line} has been updated`,
+        });
+      }
+    }
+  }, [toast]);
+
+  const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+    
+    // Initial error check
+    if (tabs[activeTabIndex]?.code) {
+      const currentTab = tabs[activeTabIndex];
+      const analysis = analyzeCode(currentTab.code, currentTab.language.id);
+      setErrorAnalysis(analysis);
+    }
+  }, [tabs, activeTabIndex]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -305,6 +450,16 @@ const Workspace = () => {
 
         <div className="flex items-center gap-2">
           <LanguageSelector selected={language} onSelect={handleLanguageChange} />
+          {(activeTab.language.id === 'html' || activeTab.language.id === 'css') && (
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border text-sm font-medium hover:bg-muted transition-colors"
+              title={showPreview ? "Hide preview" : "Show preview"}
+            >
+              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPreview ? "Hide" : "Preview"}
+            </button>
+          )}
           <button 
             onClick={handleSaveFile}
             disabled={!activeTab.fileHandle}
@@ -322,7 +477,7 @@ const Workspace = () => {
             className="flex items-center gap-2 px-4 py-1.5 rounded-md gradient-primary text-primary-foreground text-sm font-medium glow-blue hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
           >
             <Play className="w-4 h-4" />
-            {isRunning ? "Running..." : "Run"}
+            {isRunning ? "Running..." : (activeTab.language.id === 'html' || activeTab.language.id === 'css') ? "Preview" : "Run"}
           </button>
         </div>
       </header>
@@ -373,50 +528,63 @@ const Workspace = () => {
             )}
           </div>
 
-          {/* Editor */}
-          <div className="flex-1 overflow-hidden">
-            {tabs.length > 0 ? (
-              <Editor
-                height="100%"
-                language={activeTab.language.monacoLang}
-                value={activeTab.code}
-                onChange={handleCodeChange}
-                theme="vs-dark"
-                options={{
-                  fontSize: 14,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  minimap: { enabled: true },
-                  padding: { top: 16 },
-                  smoothScrolling: true,
-                  cursorBlinking: "smooth",
-                  cursorSmoothCaretAnimation: "on",
-                  renderLineHighlight: "all",
-                  bracketPairColorization: { enabled: true },
-                  scrollBeyondLastLine: false,
-                }}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center bg-muted/5">
-                <div className="text-center text-muted-foreground">
-                  <Code2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">Welcome to OmniCode</h3>
-                  <p className="text-sm mb-4">Open a folder or file to start coding</p>
-                  <div className="flex gap-2 justify-center">
-                    <button
-                      onClick={openFolder}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                    >
-                      Open Folder
-                    </button>
-                    <button
-                      onClick={openFilesFromSystem}
-                      className="px-4 py-2 border border-border rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      Open Files
-                    </button>
+          {/* Editor and Preview Container */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Editor */}
+            <div className={`${showPreview && (activeTab.language.id === 'html' || activeTab.language.id === 'css') ? 'w-1/2' : 'flex-1'} overflow-hidden`}>
+              {tabs.length > 0 ? (
+                <Editor
+                  height="100%"
+                  language={activeTab.language.monacoLang}
+                  value={activeTab.code}
+                  onChange={handleCodeChange}
+                  onMount={handleEditorMount}
+                  theme="vs-dark"
+                  options={{
+                    fontSize: 14,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    minimap: { enabled: true },
+                    padding: { top: 16 },
+                    smoothScrolling: true,
+                    cursorBlinking: "smooth",
+                    cursorSmoothCaretAnimation: "on",
+                    renderLineHighlight: "all",
+                    bracketPairColorization: { enabled: true },
+                    scrollBeyondLastLine: false,
+                  }}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center bg-muted/5">
+                  <div className="text-center text-muted-foreground">
+                    <Code2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">Welcome to OmniCode</h3>
+                    <p className="text-sm mb-4">Open a folder or file to start coding</p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={openFolder}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                      >
+                        Open Folder
+                      </button>
+                      <button
+                        onClick={openFilesFromSystem}
+                        className="px-4 py-2 border border-border rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        Open Files
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+            </div>
+
+            {/* HTML Preview */}
+            {tabs.length > 0 && (
+              <HTMLPreview
+                htmlCode={activeTab.language.id === 'html' ? activeTab.code : ''}
+                cssCode={activeTab.language.id === 'css' ? activeTab.code : ''}
+                isVisible={showPreview && (activeTab.language.id === 'html' || activeTab.language.id === 'css')}
+              />
             )}
           </div>
 
@@ -432,6 +600,19 @@ const Workspace = () => {
           />
         </div>
       </div>
+      
+      {/* Error Panel */}
+      {showErrorPanel && errorAnalysis && (
+        <ErrorPanel
+          errors={errorAnalysis.errors}
+          warnings={errorAnalysis.warnings}
+          summary={errorAnalysis.summary}
+          canRun={errorAnalysis.canRun}
+          onClose={() => setShowErrorPanel(false)}
+          onJumpToLine={handleJumpToLine}
+          onApplyFix={handleApplyFix}
+        />
+      )}
     </div>
   );
 };
