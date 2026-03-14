@@ -1,4 +1,5 @@
 // Real-time code execution and debugging utilities
+import JSCPP from "JSCPP";
 
 export interface ExecutionResult {
   output: string;
@@ -35,30 +36,66 @@ export class CodeExecutor {
   ): Promise<ExecutionResult> {
     this.isRunning = true;
     this.abortController = new AbortController();
-    
+
     const startTime = Date.now();
     let output = '';
-    
+
     try {
+      // Execute true C/C++ code inline if language matches
+      if (options.language.toLowerCase() === 'c' || options.language.toLowerCase() === 'cpp') {
+        const initMessage = 'Compiling and running with internal compiler (JSCPP)...\n';
+        output += initMessage;
+        onOutput?.(output);
+        try {
+          const config = {
+            stdio: {
+              write: (s: string) => {
+                output += s;
+                onOutput?.(output);
+              }
+            }
+          };
+          // JSCPP parses and runs the code
+          JSCPP.run(options.code, options.input || '', config);
+
+          const executionTime = Date.now() - startTime;
+          return {
+            output,
+            executionTime,
+            memoryUsage: Math.floor(Math.random() * 500) + 200, // simulated KB
+            status: 'success'
+          };
+        } catch (jscppError: any) {
+          const errStr = jscppError instanceof Error ? jscppError.message : String(jscppError);
+          output += `\nError during execution:\n${errStr}`;
+          return {
+            output,
+            error: errStr,
+            executionTime: Date.now() - startTime,
+            status: 'error'
+          };
+        }
+      }
+
       // Simulate streaming output
       const steps = this.getExecutionSteps(options.language, options.code);
-      
+
       for (let i = 0; i < steps.length; i++) {
         if (this.abortController.signal.aborted) {
           throw new Error('Execution aborted');
         }
-        
+
         const step = steps[i];
         const timestamp = new Date().toLocaleTimeString();
-        
+
         // Simulate execution delay
         await this.delay(200 + Math.random() * 300);
-        
+
         // Stream output
         const stepOutput = `[${timestamp}] ${step.message}\n`;
         output += stepOutput;
         onOutput?.(output);
-        
+
         // Generate debug info if enabled
         if (options.debug && step.debugInfo) {
           onDebug?.({
@@ -69,7 +106,7 @@ export class CodeExecutor {
           });
         }
       }
-      
+
       // Try cloud execution if available
       try {
         const cloudResult = await this.executeInCloud(options);
@@ -81,25 +118,25 @@ export class CodeExecutor {
       } catch (err) {
         console.log('Cloud execution failed, using simulation');
       }
-      
+
       // Simulate final output
       const finalOutput = this.simulateOutput(options.language, options.code);
       output += `\n--- Program Output ---\n${finalOutput}`;
       onOutput?.(output);
-      
+
       const executionTime = Date.now() - startTime;
-      
+
       return {
         output,
         executionTime,
         memoryUsage: Math.floor(Math.random() * 1000) + 500, // KB
         status: 'success'
       };
-      
+
     } catch (error) {
       const executionTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       return {
         output: output + `\nError: ${errorMessage}`,
         error: errorMessage,
@@ -142,8 +179,8 @@ export class CodeExecutor {
         steps.push(
           { message: 'Loading Python interpreter...', debugInfo: null },
           { message: 'Importing modules...', debugInfo: null },
-          { 
-            message: 'Executing main block...', 
+          {
+            message: 'Executing main block...',
             debugInfo: { line: 1, variable: '__name__', value: '__main__' }
           }
         );
@@ -153,8 +190,8 @@ export class CodeExecutor {
         steps.push(
           { message: 'Starting Node.js runtime...', debugInfo: null },
           { message: 'Loading modules...', debugInfo: null },
-          { 
-            message: 'Executing script...', 
+          {
+            message: 'Executing script...',
             debugInfo: { line: 1, variable: 'global', value: {} }
           }
         );
@@ -163,8 +200,8 @@ export class CodeExecutor {
         steps.push(
           { message: 'Compiling Java source...', debugInfo: null },
           { message: 'Starting JVM...', debugInfo: null },
-          { 
-            message: 'Executing main method...', 
+          {
+            message: 'Executing main method...',
             debugInfo: { line: 1, variable: 'args', value: [] }
           }
         );
@@ -174,8 +211,8 @@ export class CodeExecutor {
         steps.push(
           { message: 'Compiling with GCC...', debugInfo: null },
           { message: 'Linking executable...', debugInfo: null },
-          { 
-            message: 'Running binary...', 
+          {
+            message: 'Running binary...',
             debugInfo: { line: 1, variable: 'argc', value: 1 }
           }
         );
@@ -183,8 +220,8 @@ export class CodeExecutor {
       default:
         steps.push(
           { message: 'Preparing execution environment...', debugInfo: null },
-          { 
-            message: 'Running code...', 
+          {
+            message: 'Running code...',
             debugInfo: { line: 1, variable: 'status', value: 'running' }
           }
         );
@@ -209,14 +246,14 @@ export class CodeExecutor {
     });
 
     steps.push({ message: 'Execution completed.', debugInfo: null });
-    
+
     return steps;
   }
 
   private simulateOutput(language: string, code: string): string {
     // Parse the actual code to extract dynamic output
     let output = '';
-    
+
     try {
       switch (language.toLowerCase()) {
         case 'python':
@@ -275,14 +312,14 @@ export class CodeExecutor {
     // Add execution info
     const executionTime = (Math.random() * 0.5 + 0.1).toFixed(3);
     const memoryUsage = Math.floor(Math.random() * 500) + 100;
-    
+
     return `${output}\n\n[Process completed in ${executionTime}s with ${memoryUsage}KB memory usage]`;
   }
 
   private parsePythonOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('print(')) {
@@ -296,14 +333,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseJavaScriptOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('console.log(')) {
@@ -317,14 +354,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseJavaOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('System.out.print')) {
@@ -337,14 +374,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseCppOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('cout') || trimmed.includes('printf')) {
@@ -364,14 +401,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseCSharpOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('Console.Write')) {
@@ -384,14 +421,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseGoOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('fmt.Print')) {
@@ -404,14 +441,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseRustOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('println!')) {
@@ -421,14 +458,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parseRubyOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('puts ') || trimmed.includes('print ')) {
@@ -441,14 +478,14 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
   private parsePhpOutput(code: string): string {
     const outputs: string[] = [];
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.includes('echo ')) {
@@ -461,7 +498,7 @@ export class CodeExecutor {
         }
       }
     }
-    
+
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
@@ -526,7 +563,7 @@ export const isCodeRunning = (): boolean => {
 export const extractVariables = (code: string, language: string): string[] => {
   const variables: string[] = [];
   const lines = code.split('\n');
-  
+
   lines.forEach(line => {
     let match;
     switch (language.toLowerCase()) {
@@ -545,19 +582,19 @@ export const extractVariables = (code: string, language: string): string[] => {
       default:
         match = line.match(/(\w+)\s*=/);
     }
-    
+
     if (match && !variables.includes(match[1])) {
       variables.push(match[1]);
     }
   });
-  
+
   return variables;
 };
 
 export const generateBreakpoints = (code: string): number[] => {
   const lines = code.split('\n');
   const breakpoints: number[] = [];
-  
+
   lines.forEach((line, index) => {
     // Add breakpoints on function definitions, loops, and conditionals
     if (
@@ -573,6 +610,6 @@ export const generateBreakpoints = (code: string): number[] => {
       breakpoints.push(index + 1);
     }
   });
-  
+
   return breakpoints;
 };

@@ -40,26 +40,26 @@ const Workspace = () => {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   // Folder browser hook
-  const { 
-    folderHandle, 
-    fileTree, 
-    isLoading: isFolderLoading, 
-    openFolder, 
+  const {
+    folderHandle,
+    fileTree,
+    isLoading: isFolderLoading,
+    openFolder,
     openFilesFromSystem,
-    readFile, 
-    saveFile, 
-    refreshTree, 
-    closeFolder 
+    readFile,
+    saveFile,
+    refreshTree,
+    closeFolder
   } = useFolderBrowser();
 
   // Multi-tab state
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
-  const activeTab = tabs[activeTabIndex] || { 
-    filename: "untitled", 
-    code: "", 
-    language: languages[0] 
+  const activeTab = tabs[activeTabIndex] || {
+    filename: "untitled",
+    code: "",
+    language: languages[0]
   };
 
   const handleLanguageChange = useCallback((lang: Language) => {
@@ -75,7 +75,7 @@ const Workspace = () => {
       return updated;
     });
     setOutput("");
-    
+
     // Auto-show preview for HTML/CSS
     if (lang.id === 'html' || lang.id === 'css') {
       setShowPreview(true);
@@ -90,13 +90,13 @@ const Workspace = () => {
       }
       return updated;
     });
-    
+
     // Real-time error detection
     if (value && tabs[activeTabIndex]) {
       const currentTab = tabs[activeTabIndex];
       const analysis = analyzeCode(value, currentTab.language.id);
       setErrorAnalysis(analysis);
-      
+
       // Update editor markers
       if (editorRef.current) {
         const monaco = (window as any).monaco;
@@ -104,9 +104,9 @@ const Workspace = () => {
           const model = editorRef.current.getModel();
           if (model) {
             const markers = [...analysis.errors, ...analysis.warnings].map(err => ({
-              severity: err.severity === 'error' ? monaco.MarkerSeverity.Error : 
-                       err.severity === 'warning' ? monaco.MarkerSeverity.Warning : 
-                       monaco.MarkerSeverity.Info,
+              severity: err.severity === 'error' ? monaco.MarkerSeverity.Error :
+                err.severity === 'warning' ? monaco.MarkerSeverity.Warning :
+                  monaco.MarkerSeverity.Info,
               startLineNumber: err.line,
               startColumn: err.column,
               endLineNumber: err.line,
@@ -126,7 +126,7 @@ const Workspace = () => {
 
     const identifier = node.path || node.name;
     const existingIndex = tabs.findIndex((t) => (t.path || t.filename) === identifier);
-    
+
     if (existingIndex >= 0) {
       setActiveTabIndex(existingIndex);
       const existingTab = tabs[existingIndex];
@@ -153,18 +153,18 @@ const Workspace = () => {
       }
     }
 
-    const newTab: OpenTab = { 
-      filename: node.name, 
-      code: fileContent, 
+    const newTab: OpenTab = {
+      filename: node.name,
+      code: fileContent,
       language: lang,
       fileHandle,
       path: node.path
     };
-    
+
     setTabs((prev) => [...prev, newTab]);
     setActiveTabIndex(tabs.length);
     setLanguage(lang);
-    
+
     // Auto-show preview for HTML/CSS files
     if (lang.id === 'html' || lang.id === 'css') {
       setShowPreview(true);
@@ -207,11 +207,11 @@ const Workspace = () => {
 
   const handleRun = useCallback(async () => {
     if (isRunning) return;
-    
+
     if (!tabs[activeTabIndex]) return;
-    
+
     const currentTab = tabs[activeTabIndex];
-    
+
     // For HTML/CSS, just show the preview
     if (currentTab.language.id === 'html' || currentTab.language.id === 'css') {
       setShowPreview(true);
@@ -221,11 +221,11 @@ const Workspace = () => {
       });
       return;
     }
-    
+
     // Check for errors before running
     const analysis = analyzeCode(currentTab.code, currentTab.language.id);
     setErrorAnalysis(analysis);
-    
+
     if (!analysis.canRun) {
       setShowErrorPanel(true);
       toast({
@@ -235,21 +235,22 @@ const Workspace = () => {
       });
       return;
     }
-    
+
     setIsRunning(true);
     setOutput("");
     setDebugInfo([]);
-    
+
     try {
-      // First try cloud execution if supported
+      // First try cloud execution if supported (skip for C/C++ as we want inbuilt compiler)
       const langId = judge0LanguageMap[currentTab.language.id];
+      const isInbuiltCCpp = currentTab.language.id === 'c' || currentTab.language.id === 'cpp';
       let cloudExecutionAttempted = false;
-      
-      if (langId) {
+
+      if (langId && !isInbuiltCCpp) {
         cloudExecutionAttempted = true;
         const timestamp = new Date().toLocaleTimeString();
         setOutput(`[${timestamp}] Submitting to cloud compiler (${currentTab.language.name})...\n`);
-        
+
         try {
           const { data, error } = await supabase.functions.invoke("execute-code", {
             body: {
@@ -269,12 +270,12 @@ const Workspace = () => {
           if (data.time) result += `\n\n[Execution time: ${data.time}s | Memory: ${data.memory} KB]`;
 
           setOutput(result);
-          
+
           toast({
             title: 'Execution Complete',
             description: `Cloud execution completed in ${data.time || 0}s`,
           });
-          
+
           return; // Success, exit early
         } catch (cloudError: any) {
           console.log('Cloud execution failed, falling back to simulation:', cloudError.message);
@@ -282,7 +283,7 @@ const Workspace = () => {
           setOutput(`[${timestamp}] ⚠ Cloud execution failed: ${cloudError.message}\n\nFalling back to local simulation...\n\n`);
         }
       }
-      
+
       // Fallback to enhanced local execution
       const result = await executeCode(
         {
@@ -303,11 +304,11 @@ const Workspace = () => {
           setDebugInfo(prev => [...prev, debug]);
         }
       );
-      
+
       if (!cloudExecutionAttempted) {
         setOutput(result.output);
       }
-      
+
       if (result.status === 'error') {
         toast({
           title: 'Execution Error',
@@ -346,13 +347,13 @@ const Workspace = () => {
 
   const handleDebug = useCallback(() => {
     if (!tabs[activeTabIndex]) return;
-    
+
     const currentTab = tabs[activeTabIndex];
     // Analyze code for errors
     const analysis = analyzeCode(currentTab.code, currentTab.language.id);
     setErrorAnalysis(analysis);
     setShowErrorPanel(true);
-    
+
     if (analysis.hasErrors) {
       toast({
         title: 'Errors Detected',
@@ -406,7 +407,7 @@ const Workspace = () => {
 
   const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-    
+
     // Initial error check
     if (tabs[activeTabIndex]?.code) {
       const currentTab = tabs[activeTabIndex];
@@ -460,7 +461,7 @@ const Workspace = () => {
               {showPreview ? "Hide" : "Preview"}
             </button>
           )}
-          <button 
+          <button
             onClick={handleSaveFile}
             disabled={!activeTab.fileHandle}
             className="p-2 text-muted-foreground hover:text-foreground rounded transition-colors disabled:opacity-50"
@@ -485,8 +486,8 @@ const Workspace = () => {
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {sidebarOpen && (
-          <FileSidebar 
-            onFileSelect={handleFileSelect} 
+          <FileSidebar
+            onFileSelect={handleFileSelect}
             activeFile={activeTab.path || activeTab.filename}
             fileTree={fileTree}
             onOpenFolder={openFolder}
@@ -506,11 +507,10 @@ const Workspace = () => {
                 <button
                   key={tab.filename + index}
                   onClick={() => setActiveTabIndex(index)}
-                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-t border border-b-0 border-border transition-colors shrink-0 group ${
-                    index === activeTabIndex
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-t border border-b-0 border-border transition-colors shrink-0 group ${index === activeTabIndex
                       ? "bg-muted/50 text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                  }`}
+                    }`}
                 >
                   {tab.filename}
                   <span
@@ -589,8 +589,8 @@ const Workspace = () => {
           </div>
 
           {/* Output */}
-          <EnhancedTerminal 
-            output={output} 
+          <EnhancedTerminal
+            output={output}
             isRunning={isRunning}
             onRun={handleRun}
             onStop={handleStop}
@@ -600,7 +600,7 @@ const Workspace = () => {
           />
         </div>
       </div>
-      
+
       {/* Error Panel */}
       {showErrorPanel && errorAnalysis && (
         <ErrorPanel
