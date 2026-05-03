@@ -97,7 +97,7 @@ class ErrorDetector {
       const trimmed = line.trim();
 
       // Indentation errors
-      if (line.length > 0 && line[0] === ' ' && line.match(/^ +/)?.[0].length! % 4 !== 0) {
+      if (line.length > 0 && line[0] === ' ' && ((line.match(/^ +/)?.[0].length ?? 0) % 4 !== 0)) {
         warnings.push({
           line: lineNum,
           column: 1,
@@ -699,7 +699,7 @@ class ErrorDetector {
           if (!declaredVariables.has(variable) && 
               !['int', 'float', 'double', 'char', 'bool', 'string', 'cout', 'cin', 'endl', 'main', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'true', 'false', 'NULL', 'nullptr'].includes(variable) &&
               !definedMacros.has(variable) &&
-              !STANDARD_FUNCTIONS.hasOwnProperty(variable)) {
+              !Object.prototype.hasOwnProperty.call(STANDARD_FUNCTIONS, variable)) {
             warnings.push({
               line: lineNum,
               column: line.indexOf(variable) + 1,
@@ -862,8 +862,9 @@ class ErrorDetector {
   private detectJSONErrors(code: string, errors: CodeError[], warnings: CodeError[]): void {
     try {
       JSON.parse(code);
-    } catch (e: any) {
-      const match = e.message.match(/position (\d+)/);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      const match = message.match(/position (\d+)/);
       const position = match ? parseInt(match[1]) : 0;
       
       // Calculate line and column from position
@@ -875,7 +876,7 @@ class ErrorDetector {
         line,
         column,
         severity: 'error',
-        message: e.message,
+        message,
         code: 'JSON001',
         suggestion: 'Check for missing commas, quotes, or brackets. JSON requires strict formatting.',
         category: 'syntax',

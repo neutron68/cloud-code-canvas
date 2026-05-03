@@ -9,6 +9,12 @@ export interface JavaExecutionResult {
   guiWindow?: Window | null;
 }
 
+
+interface JavaObject {
+  _class: string;
+  _properties: Map<string, unknown>;
+  _constructorArgs?: unknown[];
+}
 export interface JavaExecutionOptions {
   code: string;
   input?: string;
@@ -30,7 +36,7 @@ export class JavaExecutor {
     this.abortController = new AbortController();
 
     const startTime = Date.now();
-    let output = '';
+    const output = '';
 
     try {
       // Check if the code contains GUI components
@@ -458,8 +464,8 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     const outputs: string[] = [];
     
     // Extract class and variable definitions
-    const variables = new Map<string, any>();
-    const objects = new Map<string, any>();
+    const variables = new Map<string, unknown>();
+    const objects = new Map<string, JavaObject>();
     
     // Parse the code line by line
     const lines = code.split('\n');
@@ -524,7 +530,7 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     return outputs.length > 0 ? outputs.join('\n') : 'Hello, World!';
   }
 
-  private handleVariableDeclaration(line: string, variables: Map<string, any>): void {
+  private handleVariableDeclaration(line: string, variables: Map<string, unknown>): void {
     // Handle primitive types and String
     const patterns = [
       /(?:int|Integer)\s+(\w+)\s*=\s*([^;]+)/,
@@ -556,7 +562,7 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     }
   }
 
-  private handleObjectCreation(line: string, variables: Map<string, any>, objects: Map<string, any>, currentClass: string): void {
+  private handleObjectCreation(line: string, variables: Map<string, unknown>, objects: Map<string, JavaObject>, currentClass: string): void {
     // Handle object instantiation: ClassName objName = new ClassName(...)
     const objectPattern = /(\w+)\s+(\w+)\s*=\s*new\s+(\w+)\s*\(([^)]*)\)/;
     const match = line.match(objectPattern);
@@ -568,9 +574,9 @@ In a real Java environment, your Swing/AWT components would be fully functional.
       const args = match[4];
       
       // Create a simple object representation
-      const obj: any = {
+      const obj: JavaObject = {
         _class: className,
-        _properties: new Map<string, any>()
+        _properties: new Map<string, unknown>()
       };
       
       // Parse constructor arguments
@@ -590,7 +596,7 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     }
   }
 
-  private handleMethodCall(line: string, variables: Map<string, any>, objects: Map<string, any>, outputs: string[]): void {
+  private handleMethodCall(line: string, variables: Map<string, unknown>, objects: Map<string, JavaObject>, outputs: string[]): void {
     // Handle method calls: objName.methodName(args)
     const methodPattern = /(\w+)\.(\w+)\s*\(([^)]*)\)/;
     const match = line.match(methodPattern);
@@ -625,11 +631,11 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     }
   }
 
-  private extractPrintStatement(line: string, variables: Map<string, any>, objects: Map<string, any>): string | null {
+  private extractPrintStatement(line: string, variables: Map<string, unknown>, objects: Map<string, JavaObject>): string | null {
     const match = line.match(/System\.out\.print(?:ln)?\s*\(([^)]+)\)/);
     if (!match) return null;
     
-    let content = match[1].trim();
+    const content = match[1].trim();
     
     // Handle string concatenation with +
     if (content.includes('+')) {
@@ -667,7 +673,7 @@ In a real Java environment, your Swing/AWT components would be fully functional.
     return content;
   }
 
-  private evaluateJavaExpression(expr: string, variables: Map<string, any>, objects: Map<string, any>): string {
+  private evaluateJavaExpression(expr: string, variables: Map<string, unknown>, objects: Map<string, JavaObject>): string {
     // Split by + operator, handling quoted strings
     const parts: string[] = [];
     let current = '';

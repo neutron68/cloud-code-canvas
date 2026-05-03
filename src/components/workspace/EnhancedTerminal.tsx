@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface DebugInfo {
   line: number;
   variable: string;
-  value: any;
+  value: unknown;
   timestamp: string;
 }
 
