@@ -80,11 +80,11 @@ const EnhancedTerminal = ({
       python: ['python main.py', 'pip install', 'python -m pdb'],
       javascript: ['node main.js', 'npm run', 'node --inspect'],
       typescript: ['ts-node main.ts', 'tsc', 'ts-node --inspect'],
-      java: ['javac Main.java', 'java Main', 'jdb Main'],
+      java: ['javac Main.java', 'java Main', 'java -jar app.jar (GUI apps)'],
       cpp: ['g++ main.cpp -o main', './main', 'gdb main'],
       c: ['gcc main.c -o main', './main', 'gdb main'],
     };
-    return commands[language as keyof typeof commands] || ['run', 'debug', 'stop'];
+    return commands[language.toLowerCase() as keyof typeof commands] || ['run', 'debug', 'stop'];
   };
 
   return (
@@ -140,15 +140,17 @@ const EnhancedTerminal = ({
       </div>
       
       {!collapsed && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col scroll-contain"
+          onWheel={(e) => e.stopPropagation()}>
           <TabsList className="grid w-full grid-cols-3 h-8">
             <TabsTrigger value="output" className="text-xs">Output</TabsTrigger>
             <TabsTrigger value="terminal" className="text-xs">Terminal</TabsTrigger>
             <TabsTrigger value="debug" className="text-xs">Debug</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="output" className="flex-1 overflow-auto p-3 font-mono text-sm m-0">
-            <div ref={scrollRef} className="h-full">
+          <TabsContent value="output" className="flex-1 overflow-auto p-3 font-mono text-sm m-0 scroll-contain custom-scrollbar"
+            onWheel={(e) => e.stopPropagation()}>
+            <div ref={scrollRef} className="h-full overflow-y-auto custom-scrollbar" onWheel={(e) => e.stopPropagation()}>
               {output ? (
                 <pre className="text-foreground whitespace-pre-wrap">{output}</pre>
               ) : (
@@ -165,8 +167,9 @@ const EnhancedTerminal = ({
             </div>
           </TabsContent>
           
-          <TabsContent value="terminal" className="flex-1 flex flex-col m-0">
-            <div className="flex-1 overflow-auto p-3 font-mono text-sm">
+          <TabsContent value="terminal" className="flex-1 flex flex-col m-0 scroll-contain"
+            onWheel={(e) => e.stopPropagation()}>
+            <div className="flex-1 overflow-auto p-3 font-mono text-sm custom-scrollbar" onWheel={(e) => e.stopPropagation()}>
               {terminalHistory.map((entry, i) => (
                 <div key={i} className="text-foreground whitespace-pre-wrap mb-1">
                   {entry}
@@ -193,39 +196,42 @@ const EnhancedTerminal = ({
             </div>
           </TabsContent>
           
-          <TabsContent value="debug" className="flex-1 overflow-auto p-3 font-mono text-sm m-0">
-            {debugInfo.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-neon-blue mb-3">
-                  <Bug className="w-4 h-4" />
-                  <span className="font-semibold">Debug Information</span>
-                </div>
-                {debugInfo.map((info, i) => (
-                  <div key={i} className="bg-muted/20 rounded p-2 border-l-2 border-neon-blue">
-                    <div className="text-xs text-muted-foreground">{info.timestamp}</div>
-                    <div className="text-foreground">{formatDebugInfo(info)}</div>
+          <TabsContent value="debug" className="flex-1 overflow-auto p-3 font-mono text-sm m-0 scroll-contain custom-scrollbar" 
+            onWheel={(e) => e.stopPropagation()}>
+            <div className="h-full overflow-y-auto custom-scrollbar" onWheel={(e) => e.stopPropagation()}>
+              {debugInfo.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-neon-blue mb-3">
+                    <Bug className="w-4 h-4" />
+                    <span className="font-semibold">Debug Information</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-muted-foreground italic">
-                <div className="flex items-center gap-2 mb-3">
-                  <Bug className="w-4 h-4" />
-                  <span>Debug Mode</span>
+                  {debugInfo.map((info, i) => (
+                    <div key={i} className="bg-muted/20 rounded p-2 border-l-2 border-neon-blue">
+                      <div className="text-xs text-muted-foreground">{info.timestamp}</div>
+                      <div className="text-foreground">{formatDebugInfo(info)}</div>
+                    </div>
+                  ))}
                 </div>
-                <p>No debug information available.</p>
-                <p className="text-xs mt-2">Click "Debug" or type "debug" in terminal to enable debugging.</p>
-                <div className="mt-4 p-3 bg-muted/10 rounded border">
-                  <p className="font-semibold text-xs mb-2">Debug Features:</p>
-                  <ul className="text-xs space-y-1">
-                    <li>• Variable inspection</li>
-                    <li>• Step-by-step execution</li>
-                    <li>• Breakpoint management</li>
-                    <li>• Call stack analysis</li>
-                  </ul>
+              ) : (
+                <div className="text-muted-foreground italic">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Bug className="w-4 h-4" />
+                    <span>Debug Mode</span>
+                  </div>
+                  <p>No debug information available.</p>
+                  <p className="text-xs mt-2">Click "Debug" or type "debug" in terminal to enable debugging.</p>
+                  <div className="mt-4 p-3 bg-muted/10 rounded border">
+                    <p className="font-semibold text-xs mb-2">Debug Features:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• Variable inspection</li>
+                      <li>• Step-by-step execution</li>
+                      <li>• Breakpoint management</li>
+                      <li>• Call stack analysis</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       )}

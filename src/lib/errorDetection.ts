@@ -1,4 +1,16 @@
 // Advanced error detection and analysis for multiple programming languages
+import { 
+  STANDARD_CONSTANTS, 
+  STANDARD_FUNCTIONS, 
+  STANDARD_TYPES,
+  validateFormatSpecifier,
+  getSizeof 
+} from './standardLibrary';
+import { 
+  TYPE_SIZES, 
+  PREPROCESSOR_DIRECTIVES, 
+  STANDARD_HEADERS 
+} from './cppCompilerConfig';
 
 export interface CodeError {
   line: number;
@@ -568,19 +580,62 @@ class ErrorDetector {
 
   private detectCppErrors(code: string, errors: CodeError[], warnings: CodeError[]): void {
     const lines = code.split('\n');
+    let braceCount = 0;
+    let parenCount = 0;
+    const declaredVariables = new Set<string>();
+    const includedHeaders = new Set<string>();
+    const definedMacros = new Set<string>();
 
     lines.forEach((line, index) => {
       const lineNum = index + 1;
       const trimmed = line.trim();
 
-      // Missing semicolon
-      if (trimmed.match(/^(int|string|bool|double|float|char|long|cout|return)\s*.+[^;{]$/) && 
-          !trimmed.startsWith('#') && !trimmed.startsWith('//')) {
+      // Track brace and parenthesis balance
+      braceCount += (line.match(/{/g) || []).length;
+      braceCount -= (line.match(/}/g) || []).length;
+      parenCount += (line.match(/\(/g) || []).length;
+      parenCount -= (line.match(/\)/g) || []).length;
+
+      // Skip comments and preprocessor directives for some checks
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('#')) {
+        // Handle includes
+        const includeMatch = trimmed.match(/#include\s*[<"]([^>"]+)[>"]/);
+        if (includeMatch) {
+          const header = includeMatch[1];
+          includedHeaders.add(header);
+          
+          // Check for valid standard headers
+          const allHeaders = [...STANDARD_HEADERS.c, ...STANDARD_HEADERS.cpp];
+          if (!allHeaders.includes(header) && !header.endsWith('.h') && !header.endsWith('.hpp')) {
+            warnings.push({
+              line: lineNum,
+              column: line.indexOf(header) + 1,
+              severity: 'warning',
+              message: `Header '${header}' may not be available`,
+              code: 'CPP010',
+              suggestion: 'Verify that this header exists and is accessible',
+              category: 'semantic',
+            });
+          }
+        }
+
+        // Handle defines
+        const defineMatch = trimmed.match(/#define\s+(\w+)/);
+        if (defineMatch) {
+          definedMacros.add(defineMatch[1]);
+        }
+        return;
+      }
+
+      // Missing semicolon (enhanced detection)
+      if (trimmed.match(/^(int|string|bool|double|float|char|long|short|unsigned|signed|size_t|auto|const|static)\s+\w+.*[^;{}\s]$/) ||
+          trimmed.match(/^(cout|printf|return|delete|new)\s*.+[^;{}\s]$/) ||
+          trimmed.match(/^\w+\s*\([^)]*\)\s*[^;{}\s]$/)) {
         errors.push({
           line: lineNum,
           column: line.length,
           severity: 'error',
-          message: 'Missing semicolon',
+          message: 'Expected \';\' at end of declaration',
           code: 'CPP001',
           suggestion: 'Add semicolon at the end of the statement',
           fix: line + ';',
@@ -588,20 +643,220 @@ class ErrorDetector {
         });
       }
 
-      // Missing namespace std
-      if (trimmed.includes('cout') && !code.includes('using namespace std') && !trimmed.includes('std::')) {
+      // Missing namespace std or std:: prefix
+      const stdFunctions = ['cout', 'cin', 'endl', 'string', 'vector', 'map', 'set'];
+      stdFunctions.forEach(func => {
+        if (trimmed.includes(func) && !code.includes('using namespace std') && !trimmed.includes(`std::${func}`)) {
+          errors.push({
+            line: lineNum,
+            column: line.indexOf(func) + 1,
+            severity: 'error',
+            message: `'${func}' was not declared in this scope`,
+            code: 'CPP002',
+            suggestion: `Add 'using namespace std;' or use 'std::${func}'`,
+            fix: line.replace(func, `std::${func}`),
+            category: 'semantic',
+          });
+        }
+      });
+
+      // Missing iostream include for cout/cin
+      if ((trimmed.includes('cout') || trimmed.includes('cin')) && !includedHeaders.has('iostream')) {
         errors.push({
           line: lineNum,
-          column: line.indexOf('cout') + 1,
+          column: line.indexOf(trimmed.includes('cout') ? 'cout' : 'cin') + 1,
           severity: 'error',
-          message: "'cout' is not defined",
-          code: 'CPP002',
-          suggestion: "Add 'using namespace std;' or use 'std::cout'",
-          fix: line.replace('cout', 'std::cout'),
+          message: 'iostream: No such file or directory',
+          code: 'CPP003',
+          suggestion: 'Add #include <iostream> at the top of the file',
           category: 'semantic',
         });
       }
+
+      // Missing stdio.h for printf/scanf
+      if ((trimmed.includes('printf') || trimmed.includes('scanf')) && !includedHeaders.has('stdio.h')) {
+        warnings.push({
+          line: lineNum,
+          column: line.indexOf(trimmed.includes('printf') ? 'printf' : 'scanf') + 1,
+          severity: 'warning',
+          message: 'Implicit declaration of function',
+          code: 'CPP004',
+          suggestion: 'Add #include <stdio.h> for C-style I/O functions',
+          category: 'semantic',
+        });
+      }
+
+      // Variable declaration tracking
+      const varDeclMatch = trimmed.match(/^(int|float|double|char|bool|string|auto|const\s+\w+|static\s+\w+)\s+(\w+)/);
+      if (varDeclMatch) {
+        declaredVariables.add(varDeclMatch[2]);
+      }
+
+      // Undefined variable usage
+      const varUsageMatch = trimmed.match(/\b(\w+)\b/g);
+      if (varUsageMatch) {
+        varUsageMatch.forEach(variable => {
+          if (!declaredVariables.has(variable) && 
+              !['int', 'float', 'double', 'char', 'bool', 'string', 'cout', 'cin', 'endl', 'main', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'true', 'false', 'NULL', 'nullptr'].includes(variable) &&
+              !definedMacros.has(variable) &&
+              !STANDARD_FUNCTIONS.hasOwnProperty(variable)) {
+            warnings.push({
+              line: lineNum,
+              column: line.indexOf(variable) + 1,
+              severity: 'warning',
+              message: `'${variable}' was not declared in this scope`,
+              code: 'CPP005',
+              suggestion: `Declare variable '${variable}' before using it`,
+              category: 'semantic',
+            });
+          }
+        });
+      }
+
+      // Format specifier validation for printf
+      const printfMatch = trimmed.match(/printf\s*\(\s*"([^"]*)"(?:,\s*(.+))?\)/);
+      if (printfMatch) {
+        const formatString = printfMatch[1];
+        const args = printfMatch[2];
+        const specifiers = formatString.match(/%[diouxXeEfFgGaAcspn%]/g) || [];
+        
+        if (args) {
+          const argCount = args.split(',').length;
+          if (specifiers.length !== argCount) {
+            warnings.push({
+              line: lineNum,
+              column: line.indexOf('printf') + 1,
+              severity: 'warning',
+              message: `Format specifier count (${specifiers.length}) doesn't match argument count (${argCount})`,
+              code: 'CPP006',
+              suggestion: 'Ensure the number of format specifiers matches the number of arguments',
+              category: 'semantic',
+            });
+          }
+        }
+      }
+
+      // Missing main function (check at end)
+      if (index === lines.length - 1 && !code.includes('int main') && !code.includes('void main')) {
+        warnings.push({
+          line: 1,
+          column: 1,
+          severity: 'warning',
+          message: 'No main function found',
+          code: 'CPP007',
+          suggestion: 'Add a main function: int main() { return 0; }',
+          category: 'semantic',
+        });
+      }
+
+      // Unmatched braces
+      if (braceCount < 0) {
+        errors.push({
+          line: lineNum,
+          column: line.indexOf('}') + 1,
+          severity: 'error',
+          message: 'Unexpected \'}\'',
+          code: 'CPP008',
+          suggestion: 'Remove this closing brace or add a matching opening brace',
+          category: 'syntax',
+        });
+      }
+
+      // Unmatched parentheses
+      if (parenCount < 0) {
+        errors.push({
+          line: lineNum,
+          column: line.lastIndexOf(')') + 1,
+          severity: 'error',
+          message: 'Unexpected \')\'',
+          code: 'CPP009',
+          suggestion: 'Remove this closing parenthesis or add a matching opening parenthesis',
+          category: 'syntax',
+        });
+      }
+
+      // Type mismatch warnings (basic)
+      const assignmentMatch = trimmed.match(/^(int|float|double)\s+\w+\s*=\s*(.+);/);
+      if (assignmentMatch) {
+        const type = assignmentMatch[1];
+        const value = assignmentMatch[2].trim();
+        
+        if (type === 'int' && value.includes('.') && !value.includes('(int)')) {
+          warnings.push({
+            line: lineNum,
+            column: line.indexOf(value) + 1,
+            severity: 'warning',
+            message: 'Implicit conversion from double to int',
+            code: 'CPP011',
+            suggestion: 'Use explicit cast: (int)value or change variable type to double',
+            category: 'semantic',
+          });
+        }
+      }
+
+      // Memory leak detection (basic)
+      if (trimmed.includes('new ') && !code.includes('delete')) {
+        warnings.push({
+          line: lineNum,
+          column: line.indexOf('new') + 1,
+          severity: 'warning',
+          message: 'Potential memory leak: new without corresponding delete',
+          code: 'CPP012',
+          suggestion: 'Add corresponding delete statement or use smart pointers',
+          category: 'security',
+        });
+      }
+
+      // Array bounds (basic check)
+      const arrayAccessMatch = trimmed.match(/(\w+)\[(\d+)\]/);
+      if (arrayAccessMatch) {
+        const arrayName = arrayAccessMatch[1];
+        const index = parseInt(arrayAccessMatch[2]);
+        
+        // Look for array declaration
+        const arrayDeclRegex = new RegExp(`${arrayName}\\[(\\d+)\\]`);
+        const arrayDecl = code.match(arrayDeclRegex);
+        if (arrayDecl) {
+          const arraySize = parseInt(arrayDecl[1]);
+          if (index >= arraySize) {
+            errors.push({
+              line: lineNum,
+              column: line.indexOf(arrayAccessMatch[0]) + 1,
+              severity: 'error',
+              message: `Array index ${index} is out of bounds for array of size ${arraySize}`,
+              code: 'CPP013',
+              suggestion: `Use index between 0 and ${arraySize - 1}`,
+              category: 'semantic',
+            });
+          }
+        }
+      }
     });
+
+    // Final checks for unmatched braces/parentheses
+    if (braceCount > 0) {
+      errors.push({
+        line: lines.length,
+        column: 1,
+        severity: 'error',
+        message: `Expected '}' at end of input`,
+        code: 'CPP014',
+        suggestion: `Add ${braceCount} closing brace(s) }`,
+        category: 'syntax',
+      });
+    }
+
+    if (parenCount > 0) {
+      errors.push({
+        line: lines.length,
+        column: 1,
+        severity: 'error',
+        message: `Expected ')' at end of input`,
+        code: 'CPP015',
+        suggestion: `Add ${parenCount} closing parenthesis(es) )`,
+        category: 'syntax',
+      });
+    }
   }
 
   private detectJSONErrors(code: string, errors: CodeError[], warnings: CodeError[]): void {

@@ -12,10 +12,163 @@ export const languages: Language[] = [
   { name: "TypeScript", id: "typescript", extension: ".ts", monacoLang: "typescript", template: `// Welcome to OmniCode\nconst greeting: string = "Hello, World!";\nconsole.log(greeting);` },
   { name: "HTML", id: "html", extension: ".html", monacoLang: "html", template: `<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Hello World</title>\n</head>\n<body>\n    <h1>Hello, World!</h1>\n</body>\n</html>` },
   { name: "CSS", id: "css", extension: ".css", monacoLang: "css", template: `/* Welcome to OmniCode */\nbody {\n    font-family: Arial, sans-serif;\n    background-color: #f0f0f0;\n    margin: 0;\n    padding: 20px;\n}\n\nh1 {\n    color: #333;\n    text-align: center;\n}` },
-  { name: "C", id: "c", extension: ".c", monacoLang: "c", template: `#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}` },
-  { name: "C++", id: "cpp", extension: ".cpp", monacoLang: "cpp", template: `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}` },
+  { name: "C", id: "c", extension: ".c", monacoLang: "c", template: `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <limits.h>
+
+int main() {
+    // Enhanced C compiler with GCC/Clang compatibility
+    printf("=== Enhanced C Compiler Demo ===\\n");
+    
+    // Type sizes (GCC/Clang compatible)
+    printf("Type sizes:\\n");
+    printf("  char: %zu bytes\\n", sizeof(char));
+    printf("  int: %zu bytes\\n", sizeof(int));
+    printf("  long: %zu bytes\\n", sizeof(long));
+    printf("  long long: %zu bytes\\n", sizeof(long long));
+    printf("  float: %zu bytes\\n", sizeof(float));
+    printf("  double: %zu bytes\\n", sizeof(double));
+    
+    // Literal suffixes
+    long longVal = 42L;
+    unsigned int uVal = 42U;
+    float floatVal = 3.14F;
+    
+    printf("\\nLiteral suffixes:\\n");
+    printf("  42L = %ld\\n", longVal);
+    printf("  42U = %u\\n", uVal);
+    printf("  3.14F = %.2f\\n", floatVal);
+    
+    // Standard library functions
+    printf("\\nStandard library:\\n");
+    printf("  sqrt(16) = %.2f\\n", sqrt(16.0));
+    printf("  String length of 'Hello': %zu\\n", strlen("Hello"));
+    printf("  INT_MAX = %d\\n", INT_MAX);
+    
+    return 0;
+}` },
+  { name: "C++", id: "cpp", extension: ".cpp", monacoLang: "cpp", template: `#include <iostream>
+#include <vector>
+#include <string>
+#include <memory>
+#include <algorithm>
+
+int main() {
+    // Enhanced C++ compiler with modern standards support
+    std::cout << "=== Enhanced C++ Compiler Demo ===" << std::endl;
+    
+    // Modern C++ features (C++11/14/17/20)
+    auto message = std::string("Hello from C++!");
+    std::cout << "Auto keyword: " << message << std::endl;
+    
+    // Smart pointers (C++11)
+    auto ptr = std::make_unique<int>(42);
+    std::cout << "Smart pointer value: " << *ptr << std::endl;
+    
+    // Container initialization (C++11)
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    std::cout << "Vector contents: ";
+    for (const auto& num : numbers) {
+        std::cout << num << " ";
+    }
+    std::cout << std::endl;
+    
+    // Algorithm usage
+    auto sum = std::accumulate(numbers.begin(), numbers.end(), 0);
+    std::cout << "Sum of vector: " << sum << std::endl;
+    
+    // Type sizes
+    std::cout << "\\nType sizes:" << std::endl;
+    std::cout << "  int: " << sizeof(int) << " bytes" << std::endl;
+    std::cout << "  double: " << sizeof(double) << " bytes" << std::endl;
+    std::cout << "  pointer: " << sizeof(void*) << " bytes" << std::endl;
+    
+    return 0;
+}` },
   { name: "C#", id: "csharp", extension: ".cs", monacoLang: "csharp", template: `using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, World!");\n    }\n}` },
-  { name: "Java", id: "java", extension: ".java", monacoLang: "java", template: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}` },
+  { name: "Java", id: "java", extension: ".java", monacoLang: "java", template: `// Enhanced Java with GUI Support
+// Choose between Console or GUI examples below
+
+// === CONSOLE APPLICATION ===
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("=== Java Console Application ===");
+        System.out.println("Hello, World!");
+        
+        // Example with variables
+        String message = "Welcome to OmniCode!";
+        int number = 42;
+        System.out.println("Message: " + message);
+        System.out.println("Number: " + number);
+        
+        // Example with loops
+        System.out.println("\\nCounting to 5:");
+        for (int i = 1; i <= 5; i++) {
+            System.out.println("Count: " + i);
+        }
+    }
+}
+
+/* === GUI APPLICATION EXAMPLE ===
+// Uncomment the code below to create a GUI application
+// The GUI will open in a new window when you run the code
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
+public class Main extends JFrame {
+    private JLabel label;
+    private JButton button;
+    private JTextField textField;
+    private int clickCount = 0;
+
+    public Main() {
+        setTitle("Java GUI Application - OmniCode");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new FlowLayout());
+
+        // Create components
+        label = new JLabel("Welcome to Java GUI!");
+        textField = new JTextField("Type something here...", 20);
+        button = new JButton("Click Me!");
+
+        // Add action listener
+        button.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                clickCount++;
+                label.setText("Button clicked " + clickCount + " times!");
+                String text = textField.getText();
+                JOptionPane.showMessageDialog(Main.this, 
+                    "You typed: " + text + "\\nClick count: " + clickCount);
+            }
+        });
+
+        // Add components to frame
+        add(label);
+        add(textField);
+        add(button);
+
+        // Set frame properties
+        pack();
+        setLocationRelativeTo(null);
+        setVisible(true);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                new Main();
+            }
+        });
+    }
+}
+*/` },
   { name: "Go", id: "go", extension: ".go", monacoLang: "go", template: `package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}` },
   { name: "Rust", id: "rust", extension: ".rs", monacoLang: "rust", template: `fn main() {\n    println!("Hello, World!");\n}` },
   { name: "Ruby", id: "ruby", extension: ".rb", monacoLang: "ruby", template: `# Welcome to OmniCode\nputs "Hello, World!"` },

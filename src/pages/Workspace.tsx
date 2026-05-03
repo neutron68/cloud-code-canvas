@@ -14,6 +14,7 @@ import { useFolderBrowser } from "@/hooks/useFolderBrowser";
 import { FileNode } from "@/lib/folderBrowser";
 import { useToast } from "@/hooks/use-toast";
 import { executeCode, stopExecution, isCodeRunning, DebugInfo } from "@/lib/codeExecution";
+import { stopJavaExecution } from "@/lib/javaExecutor";
 import { analyzeCode, ErrorAnalysis } from "@/lib/errorDetection";
 import type { editor } from 'monaco-editor';
 
@@ -336,6 +337,7 @@ const Workspace = () => {
 
   const handleStop = useCallback(() => {
     stopExecution();
+    stopJavaExecution(); // Also stop Java execution if running
     setIsRunning(false);
     const timestamp = new Date().toLocaleTimeString();
     setOutput(prev => prev + `\n[${timestamp}] Execution stopped by user.`);

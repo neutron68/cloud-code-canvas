@@ -74,7 +74,8 @@ const HTMLPreview = ({ htmlCode, cssCode, jsCode, isVisible }: Props) => {
   if (!isVisible) return null;
 
   return (
-    <div className={`flex flex-col bg-card border-l border-border ${isFullscreen ? 'fixed inset-0 z-50' : 'w-1/2'}`}>
+    <div className={`flex flex-col bg-card border-l border-border scroll-contain ${isFullscreen ? 'fixed inset-0 z-50' : 'w-1/2'}`}
+      onWheel={(e) => e.stopPropagation()}>
       {/* Preview Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-2">

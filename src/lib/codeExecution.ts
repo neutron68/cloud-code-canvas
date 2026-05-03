@@ -1,5 +1,7 @@
 // Real-time code execution and debugging utilities
 import JSCPP from "JSCPP";
+import { enhancedCppExecutor, CppExecutionOptions } from './enhancedCppExecutor';
+import { executeJavaCode, JavaExecutionOptions } from './javaExecutor';
 
 export interface ExecutionResult {
   output: string;
@@ -41,40 +43,59 @@ export class CodeExecutor {
     let output = '';
 
     try {
-      // Execute true C/C++ code inline if language matches
-      if (options.language.toLowerCase() === 'c' || options.language.toLowerCase() === 'cpp') {
-        const initMessage = 'Compiling and running with internal compiler (JSCPP)...\n';
-        output += initMessage;
-        onOutput?.(output);
-        try {
-          const config = {
-            stdio: {
-              write: (s: string) => {
-                output += s;
-                onOutput?.(output);
-              }
-            }
-          };
-          // JSCPP parses and runs the code
-          JSCPP.run(options.code, options.input || '', config);
+      // Execute Java code with enhanced executor (supports both console and GUI)
+      if (options.language.toLowerCase() === 'java') {
+        const javaOptions: JavaExecutionOptions = {
+          code: options.code,
+          input: options.input,
+          timeout: options.timeout,
+          debug: options.debug,
+        };
 
-          const executionTime = Date.now() - startTime;
-          return {
-            output,
-            executionTime,
-            memoryUsage: Math.floor(Math.random() * 500) + 200, // simulated KB
-            status: 'success'
-          };
-        } catch (jscppError: any) {
-          const errStr = jscppError instanceof Error ? jscppError.message : String(jscppError);
-          output += `\nError during execution:\n${errStr}`;
-          return {
-            output,
-            error: errStr,
-            executionTime: Date.now() - startTime,
-            status: 'error'
-          };
-        }
+        const result = await executeJavaCode(
+          javaOptions,
+          onOutput,
+          (error) => {
+            output += `\nError: ${error}`;
+            onOutput?.(output);
+          }
+        );
+
+        return {
+          output: result.output,
+          error: result.error,
+          executionTime: result.executionTime,
+          memoryUsage: result.memoryUsage,
+          status: result.status
+        };
+      }
+
+      // Execute C/C++ code with enhanced compiler
+      if (options.language.toLowerCase() === 'c' || options.language.toLowerCase() === 'cpp') {
+        const cppOptions: CppExecutionOptions = {
+          code: options.code,
+          input: options.input,
+          language: options.language.toLowerCase() as 'c' | 'cpp',
+          timeout: options.timeout,
+          debug: options.debug,
+        };
+
+        const result = await enhancedCppExecutor.execute(
+          cppOptions,
+          onOutput,
+          (error) => {
+            output += `\nError: ${error}`;
+            onOutput?.(output);
+          }
+        );
+
+        return {
+          output: result.output,
+          error: result.error,
+          executionTime: result.executionTime,
+          memoryUsage: result.memoryUsage,
+          status: result.status
+        };
       }
 
       // Simulate streaming output

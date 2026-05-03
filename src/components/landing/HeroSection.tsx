@@ -68,12 +68,6 @@ const HeroSection = () => {
             Start Coding
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
-          <button
-            onClick={() => navigate("/workspace")}
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-lg glass border-glow text-foreground font-semibold text-lg hover:bg-muted/50 transition-all"
-          >
-            Try Demo
-          </button>
         </motion.div>
 
         {/* Mini editor preview */}

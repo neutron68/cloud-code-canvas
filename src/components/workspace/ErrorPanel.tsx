@@ -54,8 +54,10 @@ const ErrorPanel = ({ errors, warnings, summary, canRun, onClose, onJumpToLine, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 scroll-contain"
+      onWheel={(e) => e.stopPropagation()}>
+      <div className="bg-card border border-border rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col scroll-contain"
+        onWheel={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
