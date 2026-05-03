@@ -100,7 +100,7 @@ const Workspace = () => {
 
       // Update editor markers
       if (editorRef.current) {
-        const monaco = (window as any).monaco;
+        const monaco = (window as Window & { monaco?: typeof import("monaco-editor") }).monaco;
         if (monaco) {
           const model = editorRef.current.getModel();
           if (model) {
@@ -112,7 +112,7 @@ const Workspace = () => {
               startColumn: err.column,
               endLineNumber: err.line,
               endColumn: err.column + 10,
-              message: `${err.message}\n\n💡 ${err.suggestion}`,
+              message: `${err instanceof Error ? err.message : String(err)}\n\n💡 ${err.suggestion}`,
               code: err.code,
             }));
             monaco.editor.setModelMarkers(model, 'errorDetection', markers);
@@ -278,10 +278,10 @@ const Workspace = () => {
           });
 
           return; // Success, exit early
-        } catch (cloudError: any) {
-          console.log('Cloud execution failed, falling back to simulation:', cloudError.message);
+        } catch (cloudError: unknown) {
+          console.log('Cloud execution failed, falling back to simulation:', cloudError instanceof Error ? cloudError.message : String(cloudError));
           const timestamp = new Date().toLocaleTimeString();
-          setOutput(`[${timestamp}] ⚠ Cloud execution failed: ${cloudError.message}\n\nFalling back to local simulation...\n\n`);
+          setOutput(`[${timestamp}] ⚠ Cloud execution failed: ${cloudError instanceof Error ? cloudError.message : String(cloudError)}\n\nFalling back to local simulation...\n\n`);
         }
       }
 
@@ -322,9 +322,9 @@ const Workspace = () => {
           description: `Completed in ${result.executionTime}ms`,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const timestamp = new Date().toLocaleTimeString();
-      setOutput(`[${timestamp}] ❌ Execution failed: ${err.message}`);
+      setOutput(`[${timestamp}] ❌ Execution failed: ${err instanceof Error ? err.message : String(err)}`);
       toast({
         title: 'Error',
         description: 'Failed to execute code',

@@ -125,7 +125,7 @@ export class EnhancedCppExecutor {
 
       try {
         JSCPP.run(preprocessedCode, options.input || '', captureConfig);
-      } catch (jscppError: any) {
+      } catch (jscppError: unknown) {
         const errorMessage = this.formatJSCPPError(jscppError);
         output += `\nRuntime Error:\n${errorMessage}`;
         onError?.(errorMessage);
@@ -241,7 +241,7 @@ export class EnhancedCppExecutor {
     return processedCode;
   }
 
-  private formatJSCPPError(error: any): string {
+  private formatJSCPPError(error: unknown): string {
     if (typeof error === 'string') {
       return error;
     }

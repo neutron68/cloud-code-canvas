@@ -14,7 +14,7 @@ export interface ExecutionResult {
 export interface DebugInfo {
   line: number;
   variable: string;
-  value: any;
+  value: unknown;
   timestamp: string;
 }
 
